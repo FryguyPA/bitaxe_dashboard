@@ -1,0 +1,1546 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BitAxe Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --surface: #161b22;
+      --surface2: #1c2128;
+      --border: #30363d;
+      --accent: #f7931a;
+      --accent-dim: #7d4a0d;
+      --green: #3fb950;
+      --red: #f85149;
+      --yellow: #d29922;
+      --blue: #58a6ff;
+      --muted: #8b949e;
+      --text: #e6edf3;
+      --text-dim: #c9d1d9;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 14px;
+      min-height: 100vh;
+    }
+
+    /* ── Header ── */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    header h1 {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--accent);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    header h1 svg { flex-shrink: 0; }
+    .header-right {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .refresh-label { color: var(--muted); font-size: 13px; }
+    select, input[type=number] {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 6px;
+      padding: 5px 10px;
+      font-size: 13px;
+    }
+    .btn {
+      background: var(--accent);
+      color: #000;
+      border: none;
+      border-radius: 6px;
+      padding: 7px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: opacity .15s;
+    }
+    .btn:hover { opacity: .85; }
+    .btn.secondary {
+      background: var(--surface2);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .countdown {
+      font-size: 12px;
+      color: var(--muted);
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 5px 10px;
+      min-width: 80px;
+      text-align: center;
+    }
+
+    /* ── Summary bar ── */
+    #summary {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 1px;
+      background: var(--border);
+      border-bottom: 1px solid var(--border);
+    }
+    .summary-item {
+      background: var(--surface);
+      padding: 14px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+    .summary-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+    .summary-value { font-size: 22px; font-weight: 700; color: var(--accent); }
+    .summary-sub { font-size: 11px; color: var(--muted); }
+
+    /* ── Add miner bar ── */
+    #add-bar {
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      border-bottom: 1px solid var(--border);
+    }
+    #add-bar label { color: var(--muted); font-size: 13px; white-space: nowrap; }
+    #ip-input {
+      flex: 1;
+      min-width: 200px;
+      max-width: 340px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 6px;
+      padding: 7px 12px;
+      font-size: 13px;
+      font-family: monospace;
+    }
+    #ip-input:focus { outline: none; border-color: var(--accent); }
+    #add-err { color: var(--red); font-size: 12px; }
+
+    /* ── Grid ── */
+    #grid {
+      padding: 20px 24px;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+      gap: 16px;
+    }
+
+    /* ── Miner card ── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      transition: border-color .2s;
+    }
+    .card.online { border-color: var(--border); }
+    .card.offline { border-color: var(--red); opacity: .75; }
+    .card.loading { border-color: var(--border); }
+
+    .card-header {
+      background: var(--surface2);
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .status-dot {
+      width: 9px; height: 9px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      background: var(--muted);
+    }
+    .card.online .status-dot { background: var(--green); box-shadow: 0 0 6px var(--green); }
+    .card.offline .status-dot { background: var(--red); }
+    .card.loading .status-dot { background: var(--yellow); animation: pulse 1s infinite; }
+    @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:.4; } }
+
+    .card-title { font-weight: 600; font-size: 14px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .card-ip { font-size: 11px; color: var(--muted); font-family: monospace; }
+    .card-actions { display: flex; gap: 6px; margin-left: auto; align-items: center; }
+    .icon-btn {
+      background: none; border: none; color: var(--muted);
+      cursor: pointer; padding: 3px; border-radius: 4px;
+      line-height: 0; transition: color .15s;
+    }
+    .icon-btn:hover { color: var(--text); }
+    .icon-btn.del:hover { color: var(--red); }
+
+    .card-body { padding: 14px 16px; flex: 1; display: flex; flex-direction: column; gap: 12px; }
+
+    /* Sparkline */
+    .sparkline-row {
+      display: flex;
+      align-items: flex-end;
+      gap: 10px;
+    }
+    .sparkline-svg { flex-shrink: 0; }
+    .sparkline-label { font-size: 10px; color: var(--muted); }
+
+    /* Hashrate hero */
+    .hashrate-row {
+      display: flex;
+      align-items: flex-end;
+      gap: 6px;
+    }
+    .hashrate-big { font-size: 30px; font-weight: 800; color: var(--accent); line-height: 1; }
+    .hashrate-unit { font-size: 14px; color: var(--muted); margin-bottom: 3px; }
+    .hashrate-avgs { margin-left: auto; text-align: right; display: flex; flex-direction: column; gap: 2px; }
+    .hashrate-avgs span { font-size: 11px; color: var(--muted); }
+    .hashrate-avgs strong { color: var(--text-dim); }
+
+    /* Stats grid */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .stat {
+      background: var(--bg);
+      border-radius: 6px;
+      padding: 8px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .stat-label { font-size: 10px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+    .stat-value { font-size: 15px; font-weight: 600; color: var(--text); }
+    .stat-sub { font-size: 10px; color: var(--muted); }
+    .hot { color: var(--red) !important; }
+    .warm { color: var(--yellow) !important; }
+    .cool { color: var(--green) !important; }
+
+    /* Pool info */
+    .pool-row {
+      background: var(--bg);
+      border-radius: 6px;
+      padding: 8px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+    .pool-label { font-size: 10px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+    .pool-url { font-size: 12px; font-family: monospace; color: var(--blue); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .pool-user { font-size: 11px; color: var(--muted); font-family: monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .pool-fallback { font-size: 10px; color: var(--yellow); }
+
+    /* Shares */
+    .shares-row { display: flex; gap: 8px; }
+    .share-box {
+      flex: 1;
+      background: var(--bg);
+      border-radius: 6px;
+      padding: 8px 10px;
+    }
+    .share-box .stat-label { font-size: 10px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+    .share-acc .stat-value { color: var(--green); }
+    .share-rej .stat-value { color: var(--red); }
+
+    /* Error state */
+    .card-error {
+      padding: 20px 16px;
+      color: var(--red);
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* Empty state */
+    #empty {
+      grid-column: 1 / -1;
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--muted);
+    }
+    #empty h2 { font-size: 18px; margin-bottom: 8px; color: var(--text-dim); }
+    #empty p { font-size: 14px; line-height: 1.6; }
+
+    /* CORS warning */
+    #cors-warning {
+      background: #1a1200;
+      border: 1px solid var(--yellow);
+      border-radius: 8px;
+      margin: 16px 24px 0;
+      padding: 12px 16px;
+      display: none;
+      gap: 10px;
+      align-items: flex-start;
+    }
+    #cors-warning.visible { display: flex; }
+    #cors-warning p { font-size: 13px; color: var(--text-dim); line-height: 1.5; }
+    #cors-warning code { background: var(--surface2); padding: 1px 6px; border-radius: 4px; font-family: monospace; font-size: 12px; color: var(--yellow); }
+    .close-warn { background: none; border: none; color: var(--muted); cursor: pointer; margin-left: auto; flex-shrink: 0; font-size: 18px; line-height: 1; }
+
+    /* Misc badges */
+    .uptime { font-size: 11px; color: var(--muted); }
+    .model-badge {
+      display: inline-block;
+      background: var(--accent-dim);
+      color: var(--accent);
+      border-radius: 4px;
+      padding: 1px 6px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .fw-badge {
+      display: inline-block;
+      background: var(--surface2);
+      color: var(--muted);
+      border-radius: 4px;
+      padding: 1px 6px;
+      font-size: 10px;
+      font-family: monospace;
+    }
+
+    /* ── Charts section ── */
+    #charts-section {
+      padding: 0 24px 32px;
+    }
+    .charts-heading {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 22px 0 16px;
+      border-top: 1px solid var(--border);
+    }
+    .charts-heading h2 {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .charts-heading p { font-size: 12px; color: var(--muted); }
+    .charts-heading-right { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+
+    #charts-empty {
+      text-align: center;
+      padding: 32px;
+      color: var(--muted);
+      font-size: 13px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+    }
+
+    .charts-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(480px, 1fr));
+      gap: 16px;
+    }
+    .chart-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .chart-card.full-width { grid-column: 1 / -1; }
+    .chart-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-dim);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .chart-title span { font-size: 11px; color: var(--muted); font-weight: 400; }
+    .chart-wrap { position: relative; height: 200px; }
+    .chart-card.tall .chart-wrap { height: 240px; }
+
+    footer {
+      padding: 20px 24px;
+      color: var(--muted);
+      font-size: 12px;
+      border-top: 1px solid var(--border);
+      text-align: center;
+    }
+
+    /* ── Customize mode ── */
+    .btn.customize-active {
+      background: var(--surface2);
+      color: var(--accent);
+      border: 1px solid var(--accent);
+    }
+
+    /* Drag handle — always in DOM, only grab-visible in customize mode */
+    .drag-handle {
+      color: var(--border);
+      cursor: default;
+      flex-shrink: 0;
+      line-height: 0;
+      padding: 2px;
+      transition: color .15s;
+    }
+    body.customizing .drag-handle {
+      color: var(--muted);
+      cursor: grab;
+    }
+    body.customizing .drag-handle:active { cursor: grabbing; }
+    body.customizing .card { outline: 1px dashed var(--border); }
+    body.customizing .card-header { cursor: grab; }
+    body.customizing .card-header:active { cursor: grabbing; }
+
+    /* Sortable ghost / chosen */
+    .sortable-ghost  { opacity: .35; }
+    .sortable-chosen { box-shadow: 0 0 0 2px var(--accent); border-radius: 10px; }
+    .sortable-drag   { opacity: .9; }
+
+    /* Color picker swatch */
+    .color-btn {
+      position: relative;
+      width: 16px; height: 16px;
+      border-radius: 50%;
+      border: 2px solid rgba(255,255,255,.2);
+      cursor: pointer;
+      flex-shrink: 0;
+      display: none;          /* hidden until customize mode */
+      align-items: center;
+      justify-content: center;
+      transition: border-color .15s, transform .15s;
+    }
+    .color-btn:hover { border-color: rgba(255,255,255,.6); transform: scale(1.15); }
+    body.customizing .color-btn { display: flex; }
+    .color-btn input[type=color] {
+      position: absolute;
+      width: 1px; height: 1px;
+      opacity: 0;
+      cursor: pointer;
+    }
+
+    /* Layout select in header */
+    #layout-select { min-width: 90px; }
+
+    /* Layout grid variations */
+    #grid[data-cols="1"] { grid-template-columns: 1fr; }
+    #grid[data-cols="2"] { grid-template-columns: repeat(2, 1fr); }
+    #grid[data-cols="3"] { grid-template-columns: repeat(3, 1fr); }
+    #grid[data-cols="4"] { grid-template-columns: repeat(4, 1fr); }
+
+    /* Compact card mode */
+    body.compact .card-body { gap: 8px; }
+    body.compact .hashrate-big { font-size: 22px; }
+    body.compact .stats-grid { grid-template-columns: repeat(3, 1fr); }
+    body.compact .sparkline-row { display: none; }
+
+    /* Card size selector */
+    #card-size-select { min-width: 100px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+      <rect x="3" y="8" width="18" height="8" rx="2" fill="#f7931a" opacity=".9"/>
+      <rect x="6" y="5" width="2" height="4" rx="1" fill="#f7931a"/>
+      <rect x="10" y="5" width="2" height="4" rx="1" fill="#f7931a"/>
+      <rect x="14" y="5" width="2" height="4" rx="1" fill="#f7931a"/>
+      <rect x="6" y="15" width="2" height="4" rx="1" fill="#f7931a"/>
+      <rect x="10" y="15" width="2" height="4" rx="1" fill="#f7931a"/>
+      <rect x="14" y="15" width="2" height="4" rx="1" fill="#f7931a"/>
+      <circle cx="9" cy="12" r="1.5" fill="#0d1117"/>
+      <circle cx="15" cy="12" r="1.5" fill="#0d1117"/>
+    </svg>
+    BitAxe Dashboard
+  </h1>
+  <div class="header-right">
+    <span class="refresh-label">Refresh every</span>
+    <select id="interval-select">
+      <option value="15">15s</option>
+      <option value="30" selected>30s</option>
+      <option value="60">1m</option>
+      <option value="120">2m</option>
+      <option value="300">5m</option>
+      <option value="0">Manual</option>
+    </select>
+    <div class="countdown" id="countdown">—</div>
+    <button class="btn secondary" id="refresh-all-btn">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M1 4v6h6"/><path d="M23 20v-6h-6"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4-4.64 4.36A9 9 0 0 1 3.51 15"/></svg>
+      Refresh All
+    </button>
+    <button class="btn secondary" id="customize-btn" title="Toggle customize mode">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07M8.46 8.46a5 5 0 0 0 0 7.07"/></svg>
+      Customize
+    </button>
+  </div>
+</header>
+
+<!-- Customize toolbar — only visible in customize mode -->
+<div id="customize-bar" style="display:none; padding:10px 24px; background:var(--surface2); border-bottom:1px solid var(--accent); gap:16px; align-items:center; flex-wrap:wrap;">
+  <span style="font-size:12px; color:var(--accent); font-weight:600;">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="vertical-align:middle;margin-right:4px"><path d="M5 9l4 4 10-10"/></svg>
+    Customize Mode
+  </span>
+  <span style="font-size:12px;color:var(--muted)">Drag cards to reorder · click color swatch to repaint</span>
+  <div style="display:flex;align-items:center;gap:8px;margin-left:auto;flex-wrap:wrap;">
+    <label style="font-size:12px;color:var(--muted)">Columns:</label>
+    <select id="layout-select" style="font-size:12px;padding:4px 8px;">
+      <option value="auto">Auto</option>
+      <option value="1">1</option>
+      <option value="2">2</option>
+      <option value="3">3</option>
+      <option value="4">4</option>
+    </select>
+    <label style="font-size:12px;color:var(--muted)">Card size:</label>
+    <select id="card-size-select" style="font-size:12px;padding:4px 8px;">
+      <option value="normal">Normal</option>
+      <option value="compact">Compact</option>
+    </select>
+    <button class="btn danger" id="reset-colors-btn" style="font-size:12px;padding:5px 10px;">Reset Colors</button>
+  </div>
+</div>
+
+<div id="cors-warning">
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#d29922" stroke-width="2" style="flex-shrink:0;margin-top:1px"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+  <p>
+    <strong>CORS error detected.</strong> Your browser is blocking requests to miners when opening this file directly.<br/>
+    Fix: serve it with <code>python3 -m http.server 8080</code> in this folder, then open <code>http://localhost:8080/dashboard.html</code>
+  </p>
+  <button class="close-warn" onclick="document.getElementById('cors-warning').classList.remove('visible')">✕</button>
+</div>
+
+<div id="summary">
+  <div class="summary-item">
+    <span class="summary-label">Miners Online</span>
+    <span class="summary-value" id="sum-online">—</span>
+    <span class="summary-sub" id="sum-total"></span>
+  </div>
+  <div class="summary-item">
+    <span class="summary-label">Hashrate 1m avg</span>
+    <span class="summary-value" id="sum-hashrate-1m">—</span>
+    <span class="summary-sub">GH/s fleet total</span>
+  </div>
+  <div class="summary-item">
+    <span class="summary-label">Hashrate 10m avg</span>
+    <span class="summary-value" id="sum-hashrate">—</span>
+    <span class="summary-sub">GH/s fleet total</span>
+  </div>
+  <div class="summary-item">
+    <span class="summary-label">Hashrate 1h avg</span>
+    <span class="summary-value" id="sum-hashrate-1h">—</span>
+    <span class="summary-sub">GH/s fleet total</span>
+  </div>
+  <div class="summary-item">
+    <span class="summary-label">Total Power</span>
+    <span class="summary-value" id="sum-power">—</span>
+    <span class="summary-sub">Watts</span>
+  </div>
+  <div class="summary-item">
+    <span class="summary-label">Avg Efficiency</span>
+    <span class="summary-value" id="sum-efficiency">—</span>
+    <span class="summary-sub">J/TH</span>
+  </div>
+  <div class="summary-item">
+    <span class="summary-label">Avg Temperature</span>
+    <span class="summary-value" id="sum-temp">—</span>
+    <span class="summary-sub">°C</span>
+  </div>
+</div>
+
+<div id="add-bar">
+  <label for="ip-input">Add Miner:</label>
+  <input id="ip-input" type="text" placeholder="192.168.1.50  or  miner.local" autocomplete="off" spellcheck="false"/>
+  <button class="btn" id="add-btn">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    Add
+  </button>
+  <span id="add-err"></span>
+</div>
+
+<div id="grid">
+  <div id="empty">
+    <h2>No miners added yet</h2>
+    <p>Enter an IP address or hostname above to start monitoring your BitAxe miners.</p>
+  </div>
+</div>
+
+<!-- ── Charts ── -->
+<section id="charts-section">
+  <div class="charts-heading">
+    <div>
+      <h2>History</h2>
+      <p>Data accumulates while the page is open · persists across refreshes</p>
+    </div>
+    <div class="charts-heading-right">
+      <button class="btn secondary" id="clear-history-btn" style="font-size:12px;padding:5px 10px;">Clear History</button>
+    </div>
+  </div>
+  <div id="charts-empty">Add a miner above — charts will appear here as data is collected.</div>
+  <div class="charts-grid" id="charts-grid" style="display:none">
+    <!-- Fleet hashrate: full-width, prominent, shown first -->
+    <div class="chart-card full-width" style="--chart-h:260px">
+      <div class="chart-title">
+        Fleet Hashrate
+        <span id="fleet-ma-label">GH/s combined · with 2h moving average</span>
+      </div>
+      <div class="chart-wrap" style="height:260px"><canvas id="chart-fleet"></canvas></div>
+    </div>
+    <!-- Best difficulty as bar chart, full-width -->
+    <div class="chart-card full-width">
+      <div class="chart-title">Best Session Difficulty <span>highest difficulty share hit · one bar per sample</span></div>
+      <div class="chart-wrap"><canvas id="chart-diff"></canvas></div>
+    </div>
+    <!-- Per-miner detail row -->
+    <div class="chart-card tall">
+      <div class="chart-title">Hashrate — 10m avg <span>GH/s · per miner</span></div>
+      <div class="chart-wrap"><canvas id="chart-hashrate"></canvas></div>
+    </div>
+    <div class="chart-card tall">
+      <div class="chart-title">Temperature <span>°C</span></div>
+      <div class="chart-wrap"><canvas id="chart-temp"></canvas></div>
+    </div>
+    <div class="chart-card tall">
+      <div class="chart-title">Power Draw <span>Watts</span></div>
+      <div class="chart-wrap"><canvas id="chart-power"></canvas></div>
+    </div>
+    <div class="chart-card tall">
+      <div class="chart-title">Efficiency <span>J/TH — lower is better</span></div>
+      <div class="chart-wrap"><canvas id="chart-eff"></canvas></div>
+    </div>
+    <div class="chart-card full-width">
+      <div class="chart-title">Shares Accepted <span>cumulative count · one line per miner</span></div>
+      <div class="chart-wrap"><canvas id="chart-shares"></canvas></div>
+    </div>
+  </div>
+</section>
+
+<footer>BitAxe Dashboard · data via AxeOS <code>/api/system/info</code> · stored in localStorage</footer>
+
+<script>
+// ── Constants ─────────────────────────────────────────────────────────────────
+const STORAGE_KEY   = 'bitaxe_miners_v1';
+const INTERVAL_KEY  = 'bitaxe_interval_v1';
+const HISTORY_KEY   = 'bitaxe_history_v2';
+const LAYOUT_KEY    = 'bitaxe_layout_v1';
+const CARDSIZE_KEY  = 'bitaxe_cardsize_v1';
+const MAX_HISTORY   = 500;
+
+// Miner color palette (line, fill)
+const PALETTE = [
+  { line: '#f7931a', fill: 'rgba(247,147,26,0.12)' },
+  { line: '#58a6ff', fill: 'rgba(88,166,255,0.12)'  },
+  { line: '#3fb950', fill: 'rgba(63,185,80,0.12)'   },
+  { line: '#d29922', fill: 'rgba(210,153,34,0.12)'  },
+  { line: '#bc8cff', fill: 'rgba(188,140,255,0.12)' },
+  { line: '#ff7b72', fill: 'rgba(255,123,114,0.12)' },
+  { line: '#56d364', fill: 'rgba(86,211,100,0.12)'  },
+  { line: '#79c0ff', fill: 'rgba(121,192,255,0.12)' },
+];
+
+// ── Storage ───────────────────────────────────────────────────────────────────
+function loadMiners() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
+  catch { return []; }
+}
+function saveMiners(list) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+}
+
+function loadHistory() {
+  try { return JSON.parse(localStorage.getItem(HISTORY_KEY)) || {}; }
+  catch { return {}; }
+}
+function saveHistory() {
+  try { localStorage.setItem(HISTORY_KEY, JSON.stringify(history)); }
+  catch { /* quota exceeded — trim oldest half and retry */
+    for (const ip of Object.keys(history)) {
+      const h = history[ip];
+      const half = Math.floor(h.t.length / 2);
+      for (const k of Object.keys(h)) h[k] = h[k].slice(half);
+    }
+    try { localStorage.setItem(HISTORY_KEY, JSON.stringify(history)); } catch {}
+  }
+}
+
+// history[ip] = { t[], hr10m[], temp[], power[], eff[], acc[], diff[] }
+let history = loadHistory();
+
+function recordHistory(ip, data) {
+  if (!history[ip]) history[ip] = { t:[], hr10m:[], temp:[], power:[], eff:[], acc:[], diff:[] };
+  const h = history[ip];
+  const now = Date.now();
+  const hr10m  = data.hashRate_10m ?? 0;
+  const power  = data.power ?? 0;
+  const eff    = (power > 0 && hr10m > 0) ? power / (hr10m / 1000) : null;
+  h.t.push(now);
+  h.hr10m.push(+hr10m.toFixed(2));
+  h.temp.push(data.temp ?? null);
+  h.power.push(power > 0 ? +power.toFixed(2) : null);
+  h.eff.push(eff !== null ? +eff.toFixed(1) : null);
+  h.acc.push(data.sharesAccepted ?? null);
+  h.diff.push(parseDiff(data.bestSessionDiff));
+  // Trim to max
+  if (h.t.length > MAX_HISTORY) {
+    const trim = h.t.length - MAX_HISTORY;
+    for (const k of Object.keys(h)) h[k] = h[k].slice(trim);
+  }
+  saveHistory();
+}
+
+// ── Difficulty parser — "1.23K" → 1230, "4.56M" → 4560000 etc. ──────────────
+function parseDiff(s) {
+  if (!s || s === '—' || s === '0') return null;
+  const m = String(s).match(/^([\d.]+)\s*([KMGTP])?$/i);
+  if (!m) return null;
+  const n = parseFloat(m[1]);
+  const mult = { K:1e3, M:1e6, G:1e9, T:1e12, P:1e15 }[m[2]?.toUpperCase()] ?? 1;
+  return +(n * mult).toPrecision(4);
+}
+
+function fmtDiff(v) {
+  if (v == null) return '—';
+  if (v >= 1e12) return (v/1e12).toFixed(2) + 'T';
+  if (v >= 1e9)  return (v/1e9).toFixed(2) + 'G';
+  if (v >= 1e6)  return (v/1e6).toFixed(2) + 'M';
+  if (v >= 1e3)  return (v/1e3).toFixed(2) + 'K';
+  return String(v);
+}
+
+// ── Chart setup ───────────────────────────────────────────────────────────────
+Chart.defaults.color          = '#8b949e';
+Chart.defaults.borderColor    = '#30363d';
+Chart.defaults.font.family    = "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+Chart.defaults.font.size      = 11;
+
+const CHART_OPTS_BASE = {
+  responsive: true,
+  maintainAspectRatio: false,
+  animation: { duration: 250 },
+  interaction: { mode: 'index', intersect: false },
+  plugins: {
+    legend: {
+      position: 'top',
+      labels: { color: '#8b949e', boxWidth: 10, padding: 12, usePointStyle: true, pointStyleWidth: 8 }
+    },
+    tooltip: {
+      backgroundColor: '#1c2128',
+      borderColor: '#30363d',
+      borderWidth: 1,
+      titleColor: '#e6edf3',
+      bodyColor: '#c9d1d9',
+      padding: 10,
+    }
+  },
+  scales: {
+    x: {
+      ticks: { color: '#8b949e', maxTicksLimit: 8, maxRotation: 0, autoSkip: true },
+      grid:  { color: '#21262d' }
+    },
+    y: {
+      ticks: { color: '#8b949e' },
+      grid:  { color: '#21262d' }
+    }
+  }
+};
+
+function makeChart(id, yLabel, extra = {}) {
+  const ctx = document.getElementById(id).getContext('2d');
+  return new Chart(ctx, {
+    type: 'line',
+    data: { labels: [], datasets: [] },
+    options: {
+      ...CHART_OPTS_BASE,
+      ...extra,
+      plugins: {
+        ...CHART_OPTS_BASE.plugins,
+        ...(extra.plugins ?? {}),
+      },
+      scales: {
+        ...CHART_OPTS_BASE.scales,
+        y: { ...CHART_OPTS_BASE.scales.y, title: { display: !!yLabel, text: yLabel, color: '#8b949e', font: { size: 10 } } },
+        ...(extra.scales ?? {}),
+      }
+    }
+  });
+}
+
+let charts = {};
+
+// ── Moving average (2-hour window) ────────────────────────────────────────────
+function movingAverage(values, timestamps, windowMs = 2 * 60 * 60 * 1000) {
+  return values.map((_, i) => {
+    const cutoff = timestamps[i] - windowMs;
+    let sum = 0, count = 0;
+    for (let j = i; j >= 0 && timestamps[j] >= cutoff; j--) {
+      if (values[j] != null) { sum += values[j]; count++; }
+    }
+    return count > 0 ? +(sum / count).toFixed(2) : null;
+  });
+}
+
+function initCharts() {
+  // ── Fleet hashrate: area fill + MA line ───────────────────────────────────
+  const fleetCtx = document.getElementById('chart-fleet').getContext('2d');
+  charts.fleet = new Chart(fleetCtx, {
+    type: 'line',
+    data: { labels: [], datasets: [] },
+    options: {
+      ...CHART_OPTS_BASE,
+      plugins: {
+        ...CHART_OPTS_BASE.plugins,
+        tooltip: {
+          ...CHART_OPTS_BASE.plugins.tooltip,
+          callbacks: {
+            label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y != null ? ctx.parsed.y.toFixed(2) : '—'} GH/s`
+          }
+        }
+      },
+      scales: {
+        x: { ...CHART_OPTS_BASE.scales.x },
+        y: {
+          ...CHART_OPTS_BASE.scales.y,
+          title: { display: true, text: 'GH/s', color: '#8b949e', font: { size: 10 } },
+          beginAtZero: false,
+        }
+      }
+    }
+  });
+
+  // ── Best difficulty: bar chart ────────────────────────────────────────────
+  const diffCtx = document.getElementById('chart-diff').getContext('2d');
+  charts.diff = new Chart(diffCtx, {
+    type: 'bar',
+    data: { labels: [], datasets: [] },
+    options: {
+      ...CHART_OPTS_BASE,
+      plugins: {
+        ...CHART_OPTS_BASE.plugins,
+        tooltip: {
+          ...CHART_OPTS_BASE.plugins.tooltip,
+          callbacks: { label: ctx => ` ${ctx.dataset.label}: ${fmtDiff(ctx.parsed.y)}` }
+        }
+      },
+      scales: {
+        x: { ...CHART_OPTS_BASE.scales.x, stacked: false },
+        y: {
+          ...CHART_OPTS_BASE.scales.y,
+          type: 'logarithmic',
+          title: { display: true, text: 'Difficulty', color: '#8b949e', font: { size: 10 } },
+          ticks: { color: '#8b949e', callback: v => fmtDiff(v) }
+        }
+      }
+    }
+  });
+
+  // ── Per-miner line charts ─────────────────────────────────────────────────
+  charts.hashrate = makeChart('chart-hashrate', 'GH/s');
+  charts.temp     = makeChart('chart-temp', '°C', {
+    scales: { y: { ...CHART_OPTS_BASE.scales.y, suggestedMin: 30, suggestedMax: 90,
+      title: { display: true, text: '°C', color: '#8b949e', font: { size: 10 } } } }
+  });
+  charts.power    = makeChart('chart-power', 'W');
+  charts.eff      = makeChart('chart-eff', 'J/TH', {
+    scales: { y: { ...CHART_OPTS_BASE.scales.y,
+      title: { display: true, text: 'J/TH', color: '#8b949e', font: { size: 10 } } } }
+  });
+  charts.shares   = makeChart('chart-shares', 'Shares');
+}
+
+function fmtLabel(ts) {
+  const d = new Date(ts);
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+}
+
+function buildUnionLabels() {
+  // Build sorted union of all timestamps across all miners, formatted as HH:MM
+  const allTs = new Set();
+  for (const ip of miners.map(m => m.ip)) {
+    (history[ip]?.t ?? []).forEach(t => allTs.add(t));
+  }
+  const sorted = [...allTs].sort((a,b) => a-b);
+  return { sorted, labels: sorted.map(fmtLabel) };
+}
+
+function getDatasetForIP(ip, key, sortedTs) {
+  const h = history[ip];
+  if (!h) return sortedTs.map(() => null);
+  // Map each global timestamp to the nearest local entry within 1 interval
+  const localMap = new Map();
+  h.t.forEach((t, i) => localMap.set(t, h[key][i]));
+  return sortedTs.map(t => localMap.has(t) ? localMap.get(t) : null);
+}
+
+function getMinerLabel(ip) {
+  const d = minerData[ip]?.data;
+  return (d?.hostname && d.hostname !== ip) ? d.hostname : ip;
+}
+
+function updateCharts() {
+  const hasData = miners.some(m => (history[m.ip]?.t?.length ?? 0) > 0);
+  document.getElementById('charts-empty').style.display = hasData ? 'none' : '';
+  document.getElementById('charts-grid').style.display  = hasData ? '' : 'none';
+  if (!hasData) return;
+
+  const { sorted, labels } = buildUnionLabels();
+  const noPoints = sorted.length > 60;
+
+  // ── Fleet hashrate chart (combined total + 2h MA) ─────────────────────────
+  {
+    const ch = charts.fleet;
+    ch.data.labels = labels;
+
+    // Sum all miners' hr10m at each timestamp
+    const fleetTotals = sorted.map(ts => {
+      let sum = 0, any = false;
+      for (const m of miners) {
+        const h = history[m.ip];
+        if (!h) continue;
+        const idx = h.t.indexOf(ts);
+        if (idx >= 0 && h.hr10m[idx] != null) { sum += h.hr10m[idx]; any = true; }
+      }
+      return any ? +sum.toFixed(2) : null;
+    });
+
+    const ma = movingAverage(fleetTotals, sorted);
+
+    ch.data.datasets = [
+      {
+        label: 'Fleet Hashrate',
+        data: fleetTotals,
+        borderColor: '#00bcd4',
+        backgroundColor: 'rgba(0,188,212,0.18)',
+        borderWidth: 2,
+        fill: true,
+        tension: 0.3,
+        pointRadius: noPoints ? 0 : 2,
+        pointHoverRadius: 4,
+        spanGaps: true,
+        order: 2,
+      },
+      {
+        label: '2h Moving Average',
+        data: ma,
+        borderColor: '#3fb950',
+        backgroundColor: 'transparent',
+        borderWidth: 2.5,
+        fill: false,
+        tension: 0.4,
+        pointRadius: 0,
+        pointHoverRadius: 4,
+        spanGaps: true,
+        order: 1,
+      }
+    ];
+    ch.update('none');
+  }
+
+  // ── Diff bar chart (per miner, stacked=false) ─────────────────────────────
+  {
+    const ch = charts.diff;
+    ch.data.labels = labels;
+    ch.data.datasets = miners.map((m) => {
+      const col = getMinerColor(m.ip);
+      return {
+        label: getMinerLabel(m.ip),
+        data: getDatasetForIP(m.ip, 'diff', sorted),
+        backgroundColor: col + 'cc',
+        borderColor: col,
+        borderWidth: 1,
+        borderRadius: 2,
+        spanGaps: false,
+      };
+    });
+    ch.update('none');
+  }
+
+  // ── Per-miner line charts ─────────────────────────────────────────────────
+  const lineChartMap = {
+    hashrate: 'hr10m',
+    temp:     'temp',
+    power:    'power',
+    eff:      'eff',
+    shares:   'acc',
+  };
+
+  for (const [chartKey, histKey] of Object.entries(lineChartMap)) {
+    const ch = charts[chartKey];
+    ch.data.labels = labels;
+    ch.data.datasets = miners.map((m, i) => {
+      const data = getDatasetForIP(m.ip, histKey, sorted);
+      return {
+        label: getMinerLabel(m.ip),
+        data,
+        borderColor: getMinerColor(m.ip),
+        backgroundColor: getMinerFill(m.ip),
+        borderWidth: 2,
+        pointRadius: noPoints ? 0 : 2,
+        pointHoverRadius: 4,
+        fill: chartKey === 'hashrate',
+        tension: 0.3,
+        spanGaps: true,
+      };
+    });
+    ch.update('none');
+  }
+}
+
+// ── SVG Sparkline (in each card) ─────────────────────────────────────────────
+function sparklineSVG(values, color = '#f7931a', w = 120, h = 32) {
+  const pts = values.filter(v => v != null);
+  if (pts.length < 2) return '';
+  const min = Math.min(...pts), max = Math.max(...pts);
+  const range = max - min || 1;
+  const pad = 2;
+  const coords = pts.map((v, i) => {
+    const x = pad + (i / (pts.length - 1)) * (w - pad * 2);
+    const y = h - pad - ((v - min) / range) * (h - pad * 2);
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(' ');
+  const last = pts[pts.length - 1];
+  const lx = w - pad, ly = h - pad - ((last - min) / range) * (h - pad * 2);
+  return `<svg class="sparkline-svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+    <polyline points="${coords}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
+    <circle cx="${lx.toFixed(1)}" cy="${ly.toFixed(1)}" r="2.5" fill="${color}"/>
+  </svg>`;
+}
+
+// ── State ────────────────────────────────────────────────────────────────────
+let miners      = loadMiners();
+let minerData   = {};
+let countdownTimer = null;
+let countdownVal   = 0;
+let corsWarned     = false;
+
+// ── UI helpers ────────────────────────────────────────────────────────────────
+function fmtHashrateGH(gh) {
+  if (gh == null || isNaN(gh)) return '—';
+  return gh.toFixed(2);
+}
+function fmtUptime(sec) {
+  if (!sec) return '—';
+  const d = Math.floor(sec / 86400), hh = Math.floor((sec % 86400) / 3600), m = Math.floor((sec % 3600) / 60);
+  if (d > 0) return `${d}d ${hh}h ${m}m`;
+  if (hh > 0) return `${hh}h ${m}m`;
+  return `${m}m`;
+}
+function fmtTemp(t) { return (t == null || t === 0) ? '—' : t.toFixed(1) + ' °C'; }
+function tempClass(t) { if (!t) return ''; return t >= 75 ? 'hot' : t >= 65 ? 'warm' : 'cool'; }
+function fmtPower(w) { return (w == null) ? '—' : w.toFixed(1) + ' W'; }
+function fmtRSSI(r) { return r ? r + ' dBm' : '—'; }
+function escHtml(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function timeAgo(ms) {
+  if (!ms) return '';
+  const s = Math.round((Date.now() - ms) / 1000);
+  if (s < 5) return 'just now';
+  if (s < 60) return `${s}s ago`;
+  return `${Math.floor(s/60)}m ago`;
+}
+
+// ── Fetch ─────────────────────────────────────────────────────────────────────
+function minerUrl(ip, path) {
+  const loc = window.location;
+  const viaProxy = loc.protocol !== 'file:' &&
+    (loc.hostname === 'localhost' || loc.hostname === '127.0.0.1');
+  return viaProxy
+    ? `${loc.protocol}//${loc.host}/proxy/${ip}${path}`
+    : `http://${ip}${path}`;
+}
+
+async function fetchMiner(ip) {
+  const url = minerUrl(ip, '/api/system/info');
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
+  try {
+    const res = await fetch(url, { signal: controller.signal, cache: 'no-store' });
+    clearTimeout(timeout);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json();
+    if (json.error) throw new Error(json.error);
+    return json;
+  } catch(e) {
+    clearTimeout(timeout);
+    throw e;
+  }
+}
+
+async function refreshMiner(ip) {
+  setState(ip, 'loading');
+  try {
+    const data = await fetchMiner(ip);
+    minerData[ip] = { status: 'online', data, error: null, lastUpdated: Date.now() };
+    recordHistory(ip, data);
+    updateCharts();
+  } catch(e) {
+    const isCors = e instanceof TypeError && e.message.toLowerCase().includes('fetch');
+    if (isCors && !corsWarned) {
+      corsWarned = true;
+      document.getElementById('cors-warning').classList.add('visible');
+    }
+    const prev = minerData[ip];
+    minerData[ip] = {
+      status: 'offline',
+      data: prev?.data || null,
+      error: e.name === 'AbortError' ? 'Timeout (15s) — miner may be busy or unreachable' : e.message,
+      lastUpdated: prev?.lastUpdated || null
+    };
+  }
+  renderCard(ip);
+  updateSummary();
+}
+
+async function refreshAll() {
+  // Stagger requests 400ms apart — ESP32 handles one HTTP request at a time,
+  // so firing all at once causes queuing that looks like timeouts.
+  miners.forEach((m, i) => {
+    setTimeout(() => refreshMiner(m.ip), i * 400);
+  });
+}
+
+function setState(ip, status) {
+  if (!minerData[ip]) minerData[ip] = { status, data: null, error: null, lastUpdated: null };
+  else minerData[ip].status = status;
+  renderCard(ip);
+}
+
+// ── Rendering ─────────────────────────────────────────────────────────────────
+function getCardEl(ip) {
+  return document.getElementById('card-' + ip.replace(/[\.\:]/g,'_'));
+}
+
+function getMinerColor(ip) {
+  const m = miners.find(m => m.ip === ip);
+  if (m?.color) return m.color;
+  const idx = miners.findIndex(m => m.ip === ip);
+  return PALETTE[idx >= 0 ? idx % PALETTE.length : 0].line;
+}
+
+function getMinerFill(ip) {
+  const col = getMinerColor(ip);
+  // Convert hex to rgba with low opacity for fill
+  if (col.startsWith('#') && col.length === 7) {
+    const r = parseInt(col.slice(1,3),16);
+    const g = parseInt(col.slice(3,5),16);
+    const b = parseInt(col.slice(5,7),16);
+    return `rgba(${r},${g},${b},0.12)`;
+  }
+  return col;
+}
+
+function renderCard(ip) {
+  const miner = miners.find(m => m.ip === ip);
+  if (!miner) return;
+  const state = minerData[ip] || { status: 'loading', data: null };
+  const existing = getCardEl(ip);
+  const el = document.createElement('div');
+  el.className = `card ${state.status}`;
+  el.id = 'card-' + ip.replace(/[\.\:]/g,'_');
+  el.innerHTML = buildCardHTML(miner, state);
+  if (existing) existing.replaceWith(el);
+  else document.getElementById('grid').appendChild(el);
+  el.querySelector('.del').addEventListener('click', () => removeMiner(ip));
+  el.querySelector('.open-btn').addEventListener('click', () => window.open(`http://${ip}`, '_blank'));
+  el.querySelector('.refresh-btn').addEventListener('click', () => {
+    if (minerData[ip]?.status !== 'loading') refreshMiner(ip);
+  });
+  el.querySelector('.color-input').addEventListener('input', e => {
+    const m = miners.find(m => m.ip === ip);
+    if (m) {
+      m.color = e.target.value;
+      el.querySelector('.color-btn').style.background = e.target.value;
+      saveMiners(miners);
+      updateCharts();
+      // Re-render sparkline color
+      const spark = el.querySelector('.sparkline-svg polyline');
+      if (spark) spark.setAttribute('stroke', e.target.value);
+    }
+  });
+}
+
+function buildCardHTML(miner, state) {
+  const d = state.data;
+  const label = (d?.hostname && d.hostname !== miner.ip) ? escHtml(d.hostname) : escHtml(miner.ip);
+  const status = state.status;
+  const color = getMinerColor(miner.ip);
+
+  // Sparkline from history
+  const hist = history[miner.ip];
+  const spark = hist && hist.hr10m.length >= 2
+    ? sparklineSVG(hist.hr10m.slice(-60), color)
+    : '';
+  const sparkMin = hist?.hr10m.length >= 2
+    ? Math.min(...hist.hr10m.filter(v=>v!=null)).toFixed(1)
+    : null;
+  const sparkMax = hist?.hr10m.length >= 2
+    ? Math.max(...hist.hr10m.filter(v=>v!=null)).toFixed(1)
+    : null;
+
+  const header = `
+    <div class="card-header">
+      <svg class="drag-handle" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" title="Drag to reorder">
+        <circle cx="9" cy="5"  r="1.5"/><circle cx="15" cy="5"  r="1.5"/>
+        <circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/>
+        <circle cx="9" cy="19" r="1.5"/><circle cx="15" cy="19" r="1.5"/>
+      </svg>
+      <div class="status-dot"></div>
+      <div style="flex:1;min-width:0">
+        <div class="card-title">${label}</div>
+        <div class="card-ip">${escHtml(miner.ip)}</div>
+      </div>
+      <div class="card-actions">
+        ${d?.ASICModel ? `<span class="model-badge">${escHtml(d.ASICModel)}</span>` : ''}
+        <label class="color-btn" style="background:${color}" title="Change miner color">
+          <input type="color" class="color-input" value="${color}">
+        </label>
+        <button class="icon-btn refresh-btn" title="Refresh this miner">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 1 0 .49-4.5"/></svg>
+        </button>
+        <button class="icon-btn open-btn" title="Open AxeOS">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+        </button>
+        <button class="icon-btn del" title="Remove miner">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+        </button>
+      </div>
+    </div>`;
+
+  if (status === 'loading' && !d) {
+    return header + `<div class="card-body" style="color:var(--muted);font-size:13px;">Loading…</div>`;
+  }
+  if (status === 'offline' && !d) {
+    return header + `<div class="card-error">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      ${escHtml(state.error || 'Unreachable')}
+    </div>`;
+  }
+
+  const stale = status === 'offline'
+    ? ' <span style="color:var(--red);font-size:10px;">(stale)</span>' : '';
+  const hr    = d?.hashRate ?? 0;
+  const hr1m  = d?.hashRate_1m ?? 0;
+  const hr10m = d?.hashRate_10m ?? 0;
+  const hr1h  = d?.hashRate_1h ?? 0;
+  const temp  = d?.temp ?? 0;
+  const power = d?.power ?? 0;
+  const fanrpm  = d?.fanrpm ?? 0;
+  const fan2rpm = d?.fan2rpm;
+  const fanspeed = d?.fanspeed ?? 0;
+  const fansDisplay = fanrpm
+    ? `${fanrpm} RPM${fan2rpm ? ' / ' + fan2rpm : ''}${d?.autofanspeed ? ' (auto)' : ''}`
+    : (fanspeed ? `${fanspeed}%` : '—');
+
+  const pool     = d?.isUsingFallbackStratum ? (d?.fallbackStratumURL||'—') : (d?.stratumURL||'—');
+  const poolPort = d?.isUsingFallbackStratum ? d?.fallbackStratumPort : d?.stratumPort;
+  const poolUser = d?.isUsingFallbackStratum ? d?.fallbackStratumUser : d?.stratumUser;
+  const isFallback = !!d?.isUsingFallbackStratum;
+  const accepted = d?.sharesAccepted ?? 0;
+  const rejected = d?.sharesRejected ?? 0;
+  const rejRate  = accepted + rejected > 0
+    ? ((rejected / (accepted + rejected)) * 100).toFixed(1) + '%' : '0%';
+  const eff = (power > 0 && hr10m > 0) ? (power / (hr10m / 1000)).toFixed(0) + ' J/TH' : '—';
+  const lastSeen = state.lastUpdated ? timeAgo(state.lastUpdated) : '';
+
+  return header + `
+    <div class="card-body">
+      ${spark ? `
+      <div class="sparkline-row">
+        ${spark}
+        <div style="display:flex;flex-direction:column;gap:2px;justify-content:flex-end">
+          <span class="sparkline-label" style="color:${color}">10m hashrate</span>
+          ${sparkMin !== null ? `<span class="sparkline-label">min ${sparkMin} · max ${sparkMax}</span>` : ''}
+        </div>
+      </div>` : ''}
+
+      <div class="hashrate-row">
+        <div class="hashrate-big" style="color:${color}">${fmtHashrateGH(hr)}</div>
+        <div class="hashrate-unit">GH/s</div>
+        <div class="hashrate-avgs">
+          <span>1m: <strong>${fmtHashrateGH(hr1m)}</strong></span>
+          <span>10m: <strong>${fmtHashrateGH(hr10m)}</strong></span>
+          <span>1h: <strong>${fmtHashrateGH(hr1h)}</strong></span>
+        </div>
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat">
+          <span class="stat-label">Temperature</span>
+          <span class="stat-value ${tempClass(temp)}">${fmtTemp(temp)}</span>
+          ${d?.temp2 ? `<span class="stat-sub">Sensor 2: ${d.temp2.toFixed(1)}°C</span>` : ''}
+          ${d?.vrTemp ? `<span class="stat-sub">VR: ${d.vrTemp.toFixed(1)}°C</span>` : ''}
+        </div>
+        <div class="stat">
+          <span class="stat-label">Power</span>
+          <span class="stat-value">${fmtPower(power)}</span>
+          <span class="stat-sub">Efficiency: ${eff}</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Fan</span>
+          <span class="stat-value" style="font-size:13px">${fansDisplay}</span>
+          ${d?.temptarget ? `<span class="stat-sub">Target: ${d.temptarget}°C</span>` : ''}
+        </div>
+        <div class="stat">
+          <span class="stat-label">ASIC Freq / Volt</span>
+          <span class="stat-value" style="font-size:13px">${d?.frequency ?? '—'} MHz</span>
+          <span class="stat-sub">${d?.coreVoltageActual ? (d.coreVoltageActual/1000).toFixed(3)+' V' : '—'}</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Best Difficulty</span>
+          <span class="stat-value" style="font-size:13px">${escHtml(d?.bestDiff ?? '—')}</span>
+          <span class="stat-sub">Session: ${escHtml(d?.bestSessionDiff ?? '—')}</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Uptime</span>
+          <span class="stat-value" style="font-size:13px">${fmtUptime(d?.uptimeSeconds)}</span>
+          <span class="stat-sub">WiFi: ${fmtRSSI(d?.wifiRSSI)}</span>
+        </div>
+      </div>
+
+      <div class="shares-row">
+        <div class="share-box share-acc">
+          <div class="stat-label">Accepted</div>
+          <div class="stat-value">${accepted.toLocaleString()}</div>
+        </div>
+        <div class="share-box share-rej">
+          <div class="stat-label">Rejected</div>
+          <div class="stat-value">${rejected.toLocaleString()}</div>
+          <div class="stat-sub">${rejRate}</div>
+        </div>
+        <div class="share-box">
+          <div class="stat-label">Error %</div>
+          <div class="stat-value" style="color:var(--muted)">${d?.errorPercentage != null ? d.errorPercentage.toFixed(2)+'%' : '—'}</div>
+        </div>
+      </div>
+
+      <div class="pool-row">
+        <span class="pool-label">Pool${isFallback ? ' (fallback)' : ''}</span>
+        <span class="pool-url">${escHtml(pool)}${poolPort ? ':'+poolPort : ''}</span>
+        <span class="pool-user">${escHtml(poolUser ?? '—')}</span>
+        ${isFallback ? '<span class="pool-fallback">⚠ Using fallback stratum</span>' : ''}
+      </div>
+
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">
+        ${d?.version ? `<span class="fw-badge">fw ${escHtml(d.version)}</span>` : ''}
+        ${d?.blockFound ? `<span style="font-size:11px;color:var(--accent)">🎉 Block: ${d.blockFound}</span>` : ''}
+        <span class="uptime" style="margin-left:auto">Updated ${lastSeen}${stale}</span>
+      </div>
+    </div>`;
+}
+
+function fmtSummaryHash(gh) {
+  if (!gh || gh <= 0) return '—';
+  return gh >= 1000 ? (gh / 1000).toFixed(2) + ' T' : gh.toFixed(2);
+}
+
+function updateSummary() {
+  const online = miners.filter(m => minerData[m.ip]?.status === 'online');
+  const total  = miners.length;
+  document.getElementById('sum-online').textContent = online.length;
+  document.getElementById('sum-total').textContent  = `of ${total} miner${total !== 1 ? 's' : ''}`;
+
+  const datas = online.map(m => minerData[m.ip]?.data).filter(Boolean);
+  const total1m  = datas.reduce((a, d) => a + (d?.hashRate_1m  ?? 0), 0);
+  const total10m = datas.reduce((a, d) => a + (d?.hashRate_10m ?? 0), 0);
+  const total1h  = datas.reduce((a, d) => a + (d?.hashRate_1h  ?? 0), 0);
+  const totalPower = datas.reduce((a, d) => a + (d?.power ?? 0), 0);
+
+  document.getElementById('sum-hashrate-1m').textContent = fmtSummaryHash(total1m);
+  document.getElementById('sum-hashrate').textContent    = fmtSummaryHash(total10m);
+  document.getElementById('sum-hashrate-1h').textContent = fmtSummaryHash(total1h);
+  document.getElementById('sum-power').textContent = totalPower > 0 ? totalPower.toFixed(1) : '—';
+  document.getElementById('sum-efficiency').textContent =
+    (totalPower > 0 && total10m > 0) ? (totalPower / (total10m / 1000)).toFixed(0) : '—';
+
+  const temps = datas.map(d => d?.temp).filter(t => t > 0);
+  document.getElementById('sum-temp').textContent = temps.length
+    ? (temps.reduce((a, b) => a + b, 0) / temps.length).toFixed(1) : '—';
+}
+
+// ── Add / Remove ──────────────────────────────────────────────────────────────
+function addMiner(ip) {
+  ip = ip.trim().replace(/^https?:\/\//i,'').replace(/\/.*$/,'');
+  if (!ip) return;
+  if (miners.find(m => m.ip === ip)) {
+    document.getElementById('add-err').textContent = 'Already added.';
+    return;
+  }
+  document.getElementById('add-err').textContent = '';
+  miners.push({ ip });
+  saveMiners(miners);
+  renderEmpty();
+  refreshMiner(ip);
+}
+
+function removeMiner(ip) {
+  miners = miners.filter(m => m.ip !== ip);
+  delete minerData[ip];
+  saveMiners(miners);
+  const el = getCardEl(ip);
+  if (el) el.remove();
+  renderEmpty();
+  updateSummary();
+  updateCharts();
+}
+
+function renderEmpty() {
+  const el = document.getElementById('empty');
+  if (miners.length === 0) {
+    if (!el) {
+      const d = document.createElement('div');
+      d.id = 'empty';
+      d.innerHTML = '<h2>No miners added yet</h2><p>Enter an IP address or hostname above to start monitoring your BitAxe miners.</p>';
+      document.getElementById('grid').appendChild(d);
+    }
+  } else {
+    if (el) el.remove();
+  }
+}
+
+// ── Timer ─────────────────────────────────────────────────────────────────────
+function getInterval() {
+  return parseInt(document.getElementById('interval-select').value, 10);
+}
+function startCountdown() {
+  clearInterval(countdownTimer);
+  const iv = getInterval();
+  if (iv === 0) { document.getElementById('countdown').textContent = 'manual'; return; }
+  countdownVal = iv;
+  tick();
+  countdownTimer = setInterval(tick, 1000);
+}
+function tick() {
+  const iv = getInterval();
+  if (iv === 0) { document.getElementById('countdown').textContent = 'manual'; return; }
+  const m = Math.floor(countdownVal / 60), s = countdownVal % 60;
+  document.getElementById('countdown').textContent = m > 0
+    ? `${m}:${String(s).padStart(2,'0')}` : `${s}s`;
+  countdownVal--;
+  if (countdownVal < 0) { refreshAll(); countdownVal = iv - 1; }
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+document.getElementById('add-btn').addEventListener('click', () => {
+  addMiner(document.getElementById('ip-input').value);
+  document.getElementById('ip-input').value = '';
+});
+document.getElementById('ip-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') { addMiner(document.getElementById('ip-input').value); document.getElementById('ip-input').value = ''; }
+});
+document.getElementById('refresh-all-btn').addEventListener('click', () => {
+  refreshAll(); countdownVal = getInterval(); tick();
+});
+document.getElementById('interval-select').addEventListener('change', () => {
+  localStorage.setItem(INTERVAL_KEY, getInterval()); startCountdown();
+});
+document.getElementById('clear-history-btn').addEventListener('click', () => {
+  if (!confirm('Clear all history data? Charts will reset.')) return;
+  history = {};
+  saveHistory();
+  updateCharts();
+  // Re-render cards to remove sparklines
+  miners.forEach(m => renderCard(m.ip));
+});
+
+// ── Layout & card-size ────────────────────────────────────────────────────────
+function applyLayout(cols) {
+  const grid = document.getElementById('grid');
+  if (cols === 'auto') grid.removeAttribute('data-cols');
+  else grid.setAttribute('data-cols', cols);
+}
+function applyCardSize(size) {
+  document.body.classList.toggle('compact', size === 'compact');
+}
+
+// ── Customize mode ────────────────────────────────────────────────────────────
+let customizing = false;
+function setCustomizing(on) {
+  customizing = on;
+  document.body.classList.toggle('customizing', on);
+  document.getElementById('customize-bar').style.display = on ? 'flex' : 'none';
+  document.getElementById('customize-btn').classList.toggle('customize-active', on);
+}
+
+document.getElementById('customize-btn').addEventListener('click', () => setCustomizing(!customizing));
+
+document.getElementById('reset-colors-btn').addEventListener('click', () => {
+  miners.forEach(m => delete m.color);
+  saveMiners(miners);
+  miners.forEach(m => renderCard(m.ip));
+  updateCharts();
+});
+
+document.getElementById('layout-select').addEventListener('change', e => {
+  applyLayout(e.target.value);
+  localStorage.setItem(LAYOUT_KEY, e.target.value);
+});
+
+document.getElementById('card-size-select').addEventListener('change', e => {
+  applyCardSize(e.target.value);
+  localStorage.setItem(CARDSIZE_KEY, e.target.value);
+});
+
+// ── SortableJS ────────────────────────────────────────────────────────────────
+Sortable.create(document.getElementById('grid'), {
+  animation: 180,
+  easing: 'cubic-bezier(.25,.8,.25,1)',
+  draggable: '.card',
+  handle: '.card-header',
+  filter: '.icon-btn, .color-btn',
+  ghostClass: 'sortable-ghost',
+  chosenClass: 'sortable-chosen',
+  dragClass: 'sortable-drag',
+  onEnd(evt) {
+    // Rebuild miners array from DOM order
+    const newOrder = [...document.querySelectorAll('.card')]
+      .map(el => el.id.replace('card-', '').replace(/_/g, '.'));
+    miners = newOrder
+      .map(ip => miners.find(m => m.ip === ip))
+      .filter(Boolean);
+    saveMiners(miners);
+    updateCharts();
+  }
+});
+
+// ── Restore preferences ───────────────────────────────────────────────────────
+const savedInterval = localStorage.getItem(INTERVAL_KEY);
+if (savedInterval !== null) {
+  const sel = document.getElementById('interval-select');
+  const opt = [...sel.options].find(o => o.value === savedInterval);
+  if (opt) sel.value = savedInterval;
+}
+
+const savedLayout = localStorage.getItem(LAYOUT_KEY) || 'auto';
+document.getElementById('layout-select').value = savedLayout;
+applyLayout(savedLayout);
+
+const savedCardSize = localStorage.getItem(CARDSIZE_KEY) || 'normal';
+document.getElementById('card-size-select').value = savedCardSize;
+applyCardSize(savedCardSize);
+
+initCharts();
+renderEmpty();
+updateCharts();
+miners.forEach(m => { renderCard(m.ip); refreshMiner(m.ip); });
+updateSummary();
+startCountdown();
+</script>
+</body>
+</html>
