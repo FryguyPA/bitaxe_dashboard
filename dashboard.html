@@ -249,6 +249,13 @@
     .pool-url { font-size: 12px; font-family: monospace; color: var(--blue); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .pool-user { font-size: 11px; color: var(--muted); font-family: monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .pool-fallback { font-size: 10px; color: var(--yellow); }
+    .pool-dashboard {
+      width: fit-content;
+      font-size: 11px;
+      color: var(--green);
+      text-decoration: none;
+    }
+    .pool-dashboard:hover { text-decoration: underline; }
 
     /* Shares */
     .shares-row { display: flex; gap: 8px; }
@@ -1176,6 +1183,22 @@ function renderCard(ip) {
   });
 }
 
+function btcPowLabDashboard(pool, user) {
+  const host = String(pool ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/^stratum\+tcp:\/\//, '')
+    .split('/')[0]
+    .split(':')[0];
+  if (host !== 'stratum.btcpowlab-pool.com') return null;
+
+  const address = String(user ?? '').trim().split('.')[0];
+  const isBitcoinAddress = /^(bc1[ac-hj-np-z02-9]{11,71}|[13][a-km-zA-HJ-NP-Z1-9]{25,34})$/i.test(address);
+  if (!isBitcoinAddress) return null;
+
+  return `https://btcpowlab-pool.com/miner/${encodeURIComponent(address)}`;
+}
+
 function buildCardHTML(miner, state) {
   const d = state.data;
   const label = (d?.hostname && d.hostname !== miner.ip) ? escHtml(d.hostname) : escHtml(miner.ip);
@@ -1252,6 +1275,7 @@ function buildCardHTML(miner, state) {
   const poolPort = d?.isUsingFallbackStratum ? d?.fallbackStratumPort : d?.stratumPort;
   const poolUser = d?.isUsingFallbackStratum ? d?.fallbackStratumUser : d?.stratumUser;
   const isFallback = !!d?.isUsingFallbackStratum;
+  const poolDashboard = btcPowLabDashboard(pool, poolUser);
   const accepted = d?.sharesAccepted ?? 0;
   const rejected = d?.sharesRejected ?? 0;
   const rejRate  = accepted + rejected > 0
@@ -1334,6 +1358,7 @@ function buildCardHTML(miner, state) {
         <span class="pool-label">Pool${isFallback ? ' (fallback)' : ''}</span>
         <span class="pool-url">${escHtml(pool)}${poolPort ? ':'+poolPort : ''}</span>
         <span class="pool-user">${escHtml(poolUser ?? '—')}</span>
+        ${poolDashboard ? `<a class="pool-dashboard" href="${poolDashboard}" target="_blank" rel="noopener noreferrer">Open pool dashboard ↗</a>` : ''}
         ${isFallback ? '<span class="pool-fallback">⚠ Using fallback stratum</span>' : ''}
       </div>
 
